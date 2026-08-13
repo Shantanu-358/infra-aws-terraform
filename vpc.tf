@@ -5,7 +5,7 @@ module "vpc" {
   name = "microservices-free-vpc"
   cidr = "10.0.0.0/16" # Private network range providing up to 65,536 addresses
 
-  azs              = ["ap-south-1a", "ap-south-1b"]
+  azs              = ["ap-south-2a", "ap-south-2b"]
   public_subnets   = ["10.0.1.0/24", "10.0.2.0/24"] # Used for Load Balancer and Public Compute Nodes
   database_subnets = ["10.0.21.0/24", "10.0.22.0/24"] # Isolated database subnets
 
