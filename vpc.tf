@@ -13,6 +13,9 @@ module "vpc" {
   enable_nat_gateway = false
   enable_vpn_gateway = false
 
+  # CRITICAL FIX: Automatically assigns public IPs to instances launched in public subnets
+  map_public_ip_on_launch = true
+
   # FIXED: Creates dedicated route tables for database subnets
   create_database_subnet_group       = true
   create_database_subnet_route_table = true
