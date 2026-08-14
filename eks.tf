@@ -31,4 +31,8 @@ module "eks" {
       subnet_ids                  = module.vpc.public_subnets
     }
   }
+  # CRITICAL: Ensures VPC subnets are fully calculated before EKS attempts coalescelist validation
+  depends_on = [
+    module.vpc
+  ]
 }
