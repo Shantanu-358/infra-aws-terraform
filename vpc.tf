@@ -14,6 +14,7 @@ module "vpc" {
   enable_vpn_gateway = false
 
   # FIXED: Creates dedicated route tables for database subnets
+  create_database_subnet_group       = true
   create_database_subnet_route_table = true
   enable_dns_hostnames               = true
   enable_dns_support                 = true
