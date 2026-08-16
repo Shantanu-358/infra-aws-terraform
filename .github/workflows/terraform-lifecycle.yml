@@ -39,7 +39,7 @@ jobs:
       - name: Setup Terraform CLI
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.8.0
+          terraform_version: 1.10.0
 
       - name: Terraform Init
         run: terraform init # Connects to S3 remote backend state & locks
