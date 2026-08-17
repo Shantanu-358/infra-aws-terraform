@@ -38,9 +38,16 @@ jobs:
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan -no-color
+        run: terraform plan -out=tfplan
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: tfplan
+          retention-days: 1
 
       - name: Terraform Apply
         # Executes apply ONLY if code was merged into main (not on PR checks)
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -auto-approve # Applies changes to AWS without manual interactive confirmation
+        run: terraform apply -input=false tfplan
