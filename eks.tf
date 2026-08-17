@@ -20,10 +20,10 @@ module "eks" {
   eks_managed_node_groups = {
     main = {
       min_size     = 2
-      max_size     = 4
+      max_size     = 6
       desired_size = 3
 
-      instance_types = ["t3.micro"]
+      instance_types = ["t3.small"]
       capacity_type  = "ON_DEMAND"
 
       # CRITICAL: Nodes in public subnets must receive public IPs to communicate without NAT Gateways
