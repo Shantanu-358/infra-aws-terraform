@@ -10,6 +10,26 @@ resource "aws_security_group" "rds" {
     protocol    = "tcp"
     cidr_blocks = [module.vpc.vpc_cidr_block] # Restricts incoming access exclusively to internal VPC traffic
   }
+  
+  ingress {
+    description     = "Allow PostgreSQL traffic from EKS worker nodes"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [module.eks.node_security_group_id]
+  }
+
+  # Outbound rule defined inline
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "microservices-rds-sg"
+  }
 }
 
 # Free-Tier Eligible PostgreSQL Database Instance
