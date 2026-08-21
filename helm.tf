@@ -153,9 +153,8 @@ resource "helm_release" "argocd_application" {
 
   values = [
     yamlencode({
-      applications = [
-        {
-          name      = "microservices-argo"
+      applications = {
+        microservices-argo = {
           namespace = "argocd"
           finalizers = [
             "resources-finalizer.argocd.argoproj.io"
@@ -180,7 +179,7 @@ resource "helm_release" "argocd_application" {
             ]
           }
         }
-      ]
+      }
     })
   ]
 
