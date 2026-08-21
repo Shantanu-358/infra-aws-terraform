@@ -144,39 +144,45 @@ resource "kubernetes_secret" "app_secrets" {
 # --------------------------------------------------------------------------------
 # 4. ArgoCD Application Resource (Syncs GitOps Manifests Repo)
 # --------------------------------------------------------------------------------
-resource "kubernetes_manifest" "argocd_application" {
-  manifest = {
-    apiVersion = "argoproj.io/v1alpha1"
-    kind       = "Application"
-    metadata = {
-      name      = "microservices-argo"
-      namespace = "argocd"
-      finalizers = [
-        "resources-finalizer.argocd.argoproj.io"
-      ]
-    }
-    spec = {
-      project = "default"
-      source = {
-        repoURL        = var.gitops_repo_url
-        targetRevision = "HEAD"
-        path           = "."
-      }
-      destination = {
-        server    = "https://kubernetes.default.svc"
-        namespace = "microservices"
-      }
-      syncPolicy = {
-        automated = {
-          prune    = true
-          selfHeal = true
+resource "helm_release" "argocd_application" {
+  name       = "microservices-argo"
+  repository = "https://argoproj.github.io/argo-helm"
+  chart      = "argocd-apps"
+  namespace  = kubernetes_namespace.argocd.metadata[0].name
+  version    = "2.0.2"
+
+  values = [
+    yamlencode({
+      applications = [
+        {
+          name      = "microservices-argo"
+          namespace = "argocd"
+          finalizers = [
+            "resources-finalizer.argocd.argoproj.io"
+          ]
+          project = "default"
+          source = {
+            repoURL        = var.gitops_repo_url
+            targetRevision = "HEAD"
+            path           = "."
+          }
+          destination = {
+            server    = "https://kubernetes.default.svc"
+            namespace = "microservices"
+          }
+          syncPolicy = {
+            automated = {
+              prune    = true
+              selfHeal = true
+            }
+            syncOptions = [
+              "CreateNamespace=true"
+            ]
+          }
         }
-        syncOptions = [
-          "CreateNamespace=true"
-        ]
-      }
-    }
-  }
+      ]
+    })
+  ]
 
   depends_on = [
     helm_release.argocd,
