@@ -40,6 +40,12 @@ resource "aws_db_parameter_group" "postgres" {
     name  = "log_min_duration_statement"
     value = "250"
   }
+
+  # CKV2_AWS_69: Enforce SSL/TLS encryption in transit (100% Free Tier compliant)
+  parameter {
+    name  = "rds.force_ssl"
+    value = "1"
+  }
 }
 
 # --------------------------------------------------------------------------------
@@ -83,6 +89,7 @@ resource "aws_security_group" "rds" {
 # 4. Production-Ready PostgreSQL Database Instance
 # --------------------------------------------------------------------------------
 resource "aws_db_instance" "postgres" {
+  #checkov:skip=CKV_AWS_354: "Using default AWS-managed KMS key (aws/rds) for Performance Insights encryption to avoid monthly Customer Managed Key (CMK) charges in Free Tier"
   allocated_storage     = 20
   max_allocated_storage = 100
   engine                = "postgres"
