@@ -30,5 +30,5 @@ output "argocd_admin_password_command" {
 
 output "get_ingress_url_command" {
   description = "CLI Command to fetch the live AWS ALB Ingress public endpoint URL"
-  value       = "kubectl get ingress app-ingress -n default -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' && echo"
+  value       = "kubectl get ingress app-ingress -n microservices -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' && echo"
 }

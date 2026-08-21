@@ -1,4 +1,5 @@
 module "vpc" {
+  #checkov:skip=CKV_TF_1: "Using official AWS Terraform Registry module with version constraint"
   source  = "terraform-aws-modules/vpc/aws"
   version = "~> 5.0"
 

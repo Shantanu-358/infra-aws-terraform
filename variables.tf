@@ -47,3 +47,9 @@ variable "alb_controller_helm_version" {
   type        = string
   default     = "1.8.1"
 }
+
+variable "enable_deletion_protection" {
+  description = "Enables deletion protection on RDS PostgreSQL database instance"
+  type        = bool
+  default     = true
+}

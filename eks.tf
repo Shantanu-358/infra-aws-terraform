@@ -1,4 +1,5 @@
 module "eks" {
+  #checkov:skip=CKV_TF_1: "Using official AWS Terraform Registry module with version constraint"
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.0"
 
@@ -39,6 +40,7 @@ module "eks" {
 
 # IAM Role for AWS Load Balancer Controller
 module "load_balancer_controller_irsa_role" {
+  #checkov:skip=CKV_TF_1: "Using official AWS Terraform Registry module with version constraint"
   source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
   version = "~> 5.30"
 

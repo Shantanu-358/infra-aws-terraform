@@ -111,12 +111,20 @@ resource "helm_release" "argocd" {
 }
 
 # --------------------------------------------------------------------------------
-# 3. Dynamic Application Secrets (RDS Database URL & JWT Secret)
+# 3. Microservices Application Namespace & Dynamic Secrets
 # --------------------------------------------------------------------------------
+resource "kubernetes_namespace" "microservices" {
+  metadata {
+    name = "microservices"
+  }
+
+  depends_on = [module.eks]
+}
+
 resource "kubernetes_secret" "app_secrets" {
   metadata {
     name      = "app-secrets"
-    namespace = "default"
+    namespace = kubernetes_namespace.microservices.metadata[0].name
   }
 
   data = {
@@ -128,7 +136,8 @@ resource "kubernetes_secret" "app_secrets" {
 
   depends_on = [
     module.eks,
-    aws_db_instance.postgres
+    aws_db_instance.postgres,
+    kubernetes_namespace.microservices
   ]
 }
 
@@ -155,7 +164,7 @@ resource "kubernetes_manifest" "argocd_application" {
       }
       destination = {
         server    = "https://kubernetes.default.svc"
-        namespace = "default"
+        namespace = "microservices"
       }
       syncPolicy = {
         automated = {
@@ -170,6 +179,7 @@ resource "kubernetes_manifest" "argocd_application" {
   }
 
   depends_on = [
-    helm_release.argocd
+    helm_release.argocd,
+    kubernetes_namespace.microservices
   ]
 }
