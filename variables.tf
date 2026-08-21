@@ -22,3 +22,28 @@ variable "db_password" {
   sensitive   = true # Prevents Terraform from printing this password in CLI logs
   default     = "SecurePassword2026!"
 }
+
+variable "gitops_repo_url" {
+  description = "GitOps repository URL containing Kubernetes manifests for ArgoCD to sync"
+  type        = string
+  default     = "https://github.com/Shantanu-358/gitops-manifests.git"
+}
+
+variable "jwt_secret_key" {
+  description = "JWT Secret Key used by backend API for token signing"
+  type        = string
+  sensitive   = true
+  default     = "c865f35c1f0aa4c5645f01f3f3ef72d0b589de88815b04f532748edaf26e799f"
+}
+
+variable "argocd_helm_version" {
+  description = "Version of the ArgoCD Helm chart to install"
+  type        = string
+  default     = "7.3.11"
+}
+
+variable "alb_controller_helm_version" {
+  description = "Version of the AWS Load Balancer Controller Helm chart to install"
+  type        = string
+  default     = "1.8.1"
+}

@@ -10,7 +10,7 @@ resource "aws_security_group" "rds" {
     protocol    = "tcp"
     cidr_blocks = [module.vpc.vpc_cidr_block] # Restricts incoming access exclusively to internal VPC traffic
   }
-  
+
   ingress {
     description     = "Allow PostgreSQL traffic from EKS worker nodes"
     from_port       = 5432

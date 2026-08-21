@@ -1,0 +1,175 @@
+# Configures Kubernetes and Helm providers to interact with the provisioned EKS Cluster
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region]
+  }
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region]
+    }
+  }
+}
+
+# --------------------------------------------------------------------------------
+# 1. AWS Load Balancer Controller ServiceAccount & Helm Release
+# --------------------------------------------------------------------------------
+resource "kubernetes_service_account" "aws_load_balancer_controller" {
+  metadata {
+    name      = "aws-load-balancer-controller"
+    namespace = "kube-system"
+    annotations = {
+      "eks.amazonaws.com/role-arn" = module.load_balancer_controller_irsa_role.iam_role_arn
+    }
+    labels = {
+      "app.kubernetes.io/component" = "controller"
+      "app.kubernetes.io/name"      = "aws-load-balancer-controller"
+    }
+  }
+
+  depends_on = [module.eks]
+}
+
+resource "helm_release" "aws_load_balancer_controller" {
+  name       = "aws-load-balancer-controller"
+  repository = "https://aws.github.io/eks-charts"
+  chart      = "aws-load-balancer-controller"
+  namespace  = "kube-system"
+  version    = var.alb_controller_helm_version
+
+  set {
+    name  = "clusterName"
+    value = module.eks.cluster_name
+  }
+
+  set {
+    name  = "serviceAccount.create"
+    value = "false"
+  }
+
+  set {
+    name  = "serviceAccount.name"
+    value = kubernetes_service_account.aws_load_balancer_controller.metadata[0].name
+  }
+
+  set {
+    name  = "region"
+    value = var.aws_region
+  }
+
+  set {
+    name  = "vpcId"
+    value = module.vpc.vpc_id
+  }
+
+  depends_on = [
+    module.eks,
+    kubernetes_service_account.aws_load_balancer_controller
+  ]
+}
+
+# --------------------------------------------------------------------------------
+# 2. ArgoCD Installation via Helm
+# --------------------------------------------------------------------------------
+resource "kubernetes_namespace" "argocd" {
+  metadata {
+    name = "argocd"
+  }
+
+  depends_on = [module.eks]
+}
+
+resource "helm_release" "argocd" {
+  name             = "argocd"
+  repository       = "https://argoproj.github.io/argo-helm"
+  chart            = "argo-cd"
+  namespace        = kubernetes_namespace.argocd.metadata[0].name
+  version          = var.argocd_helm_version
+  create_namespace = false
+
+  set {
+    name  = "server.service.type"
+    value = "ClusterIP"
+  }
+
+  depends_on = [
+    module.eks,
+    kubernetes_namespace.argocd
+  ]
+}
+
+# --------------------------------------------------------------------------------
+# 3. Dynamic Application Secrets (RDS Database URL & JWT Secret)
+# --------------------------------------------------------------------------------
+resource "kubernetes_secret" "app_secrets" {
+  metadata {
+    name      = "app-secrets"
+    namespace = "default"
+  }
+
+  data = {
+    DATABASE_URL   = "postgresql://dbadmin:${var.db_password}@${aws_db_instance.postgres.endpoint}/appdb"
+    JWT_SECRET_KEY = var.jwt_secret_key
+  }
+
+  type = "Opaque"
+
+  depends_on = [
+    module.eks,
+    aws_db_instance.postgres
+  ]
+}
+
+# --------------------------------------------------------------------------------
+# 4. ArgoCD Application Resource (Syncs GitOps Manifests Repo)
+# --------------------------------------------------------------------------------
+resource "kubernetes_manifest" "argocd_application" {
+  manifest = {
+    apiVersion = "argoproj.io/v1alpha1"
+    kind       = "Application"
+    metadata = {
+      name      = "microservices-argo"
+      namespace = "argocd"
+      finalizers = [
+        "resources-finalizer.argocd.argoproj.io"
+      ]
+    }
+    spec = {
+      project = "default"
+      source = {
+        repoURL        = var.gitops_repo_url
+        targetRevision = "HEAD"
+        path           = "."
+      }
+      destination = {
+        server    = "https://kubernetes.default.svc"
+        namespace = "default"
+      }
+      syncPolicy = {
+        automated = {
+          prune    = true
+          selfHeal = true
+        }
+        syncOptions = [
+          "CreateNamespace=true"
+        ]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.argocd
+  ]
+}
