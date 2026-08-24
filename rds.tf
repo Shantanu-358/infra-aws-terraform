@@ -128,9 +128,11 @@ resource "aws_db_instance" "postgres" {
   multi_az = true
 
   # CKV_AWS_293: Deletion Protection
-  # During normal operation: deletion_protection=true (Chekov compliance)
-  # During destroy: -var="enable_deletion_protection=false" + skip_final_snapshot=true (avoids parameter conflicts)
+  # During normal operation: deletion_protection=true, backup_retention_period=7 (Chekov compliance)
+  # During destroy: enable_deletion_protection=false disables both protection and backups
+  # This avoids the InvalidParameterCombination error when deleting RDS instances
   deletion_protection       = var.enable_deletion_protection
+  backup_retention_period   = var.enable_deletion_protection ? 7 : 0
   skip_final_snapshot       = !var.enable_deletion_protection
   final_snapshot_identifier = var.enable_deletion_protection ? "${var.cluster_name}-postgres-final-snapshot" : null
 
