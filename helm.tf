@@ -1,25 +1,28 @@
+# --------------------------------------------------------------------------------
+# EKS Cluster Data Sources (Deferred Evaluation)
+# --------------------------------------------------------------------------------
+data "aws_eks_cluster" "cluster" {
+  name       = module.eks.cluster_name
+  depends_on = [module.eks]
+}
+
+data "aws_eks_cluster_auth" "cluster" {
+  name       = module.eks.cluster_name
+  depends_on = [module.eks]
+}
+
 # Configures Kubernetes and Helm providers to interact with the provisioned EKS Cluster
 provider "kubernetes" {
-  host                   = module.eks.cluster_endpoint
-  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-
-  exec {
-    api_version = "client.authentication.k8s.io/v1beta1"
-    command     = "aws"
-    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region]
-  }
+  host                   = data.aws_eks_cluster.cluster.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+  token                  = data.aws_eks_cluster_auth.cluster.token
 }
 
 provider "helm" {
   kubernetes {
-    host                   = module.eks.cluster_endpoint
-    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
-
-    exec {
-      api_version = "client.authentication.k8s.io/v1beta1"
-      command     = "aws"
-      args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name, "--region", var.aws_region]
-    }
+    host                   = data.aws_eks_cluster.cluster.endpoint
+    cluster_ca_certificate = base64decode(data.aws_eks_cluster.cluster.certificate_authority[0].data)
+    token                  = data.aws_eks_cluster_auth.cluster.token
   }
 }
 
@@ -83,21 +86,13 @@ resource "helm_release" "aws_load_balancer_controller" {
 # --------------------------------------------------------------------------------
 # 2. ArgoCD Installation via Helm
 # --------------------------------------------------------------------------------
-resource "kubernetes_namespace" "argocd" {
-  metadata {
-    name = "argocd"
-  }
-
-  depends_on = [module.eks]
-}
-
 resource "helm_release" "argocd" {
   name             = "argocd"
   repository       = "https://argoproj.github.io/argo-helm"
   chart            = "argo-cd"
-  namespace        = kubernetes_namespace.argocd.metadata[0].name
+  namespace        = "argocd"
   version          = var.argocd_helm_version
-  create_namespace = false
+  create_namespace = true
 
   set {
     name  = "server.service.type"
@@ -105,50 +100,18 @@ resource "helm_release" "argocd" {
   }
 
   depends_on = [
-    module.eks,
-    kubernetes_namespace.argocd
+    module.eks
   ]
 }
 
 # --------------------------------------------------------------------------------
-# 3. Microservices Application Namespace & Dynamic Secrets
-# --------------------------------------------------------------------------------
-resource "kubernetes_namespace" "microservices" {
-  metadata {
-    name = "microservices"
-  }
-
-  depends_on = [module.eks]
-}
-
-resource "kubernetes_secret" "app_secrets" {
-  metadata {
-    name      = "app-secrets"
-    namespace = kubernetes_namespace.microservices.metadata[0].name
-  }
-
-  data = {
-    DATABASE_URL   = "postgresql://dbadmin:${var.db_password}@${aws_db_instance.postgres.endpoint}/appdb"
-    JWT_SECRET_KEY = var.jwt_secret_key
-  }
-
-  type = "Opaque"
-
-  depends_on = [
-    module.eks,
-    aws_db_instance.postgres,
-    kubernetes_namespace.microservices
-  ]
-}
-
-# --------------------------------------------------------------------------------
-# 4. ArgoCD Application Resource (Syncs GitOps Manifests Repo)
+# 3. ArgoCD Application Resource (Syncs GitOps Manifests Repo & Creates Microservices Namespace)
 # --------------------------------------------------------------------------------
 resource "helm_release" "argocd_application" {
   name       = "microservices-argo"
   repository = "https://argoproj.github.io/argo-helm"
   chart      = "argocd-apps"
-  namespace  = kubernetes_namespace.argocd.metadata[0].name
+  namespace  = "argocd"
   version    = "2.0.2"
 
   values = [
@@ -184,7 +147,29 @@ resource "helm_release" "argocd_application" {
   ]
 
   depends_on = [
-    helm_release.argocd,
-    kubernetes_namespace.microservices
+    helm_release.argocd
+  ]
+}
+
+# --------------------------------------------------------------------------------
+# 4. Microservices Dynamic Application Secrets (RDS Database URL & JWT Secret)
+# --------------------------------------------------------------------------------
+resource "kubernetes_secret" "app_secrets" {
+  metadata {
+    name      = "app-secrets"
+    namespace = "microservices"
+  }
+
+  data = {
+    DATABASE_URL   = "postgresql://dbadmin:${var.db_password}@${aws_db_instance.postgres.endpoint}/appdb"
+    JWT_SECRET_KEY = var.jwt_secret_key
+  }
+
+  type = "Opaque"
+
+  depends_on = [
+    module.eks,
+    aws_db_instance.postgres,
+    helm_release.argocd_application
   ]
 }
