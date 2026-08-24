@@ -152,12 +152,20 @@ resource "helm_release" "argocd_application" {
 }
 
 # --------------------------------------------------------------------------------
-# 4. Microservices Dynamic Application Secrets (RDS Database URL & JWT Secret)
+# 4. Microservices Application Namespace & Dynamic Secrets
 # --------------------------------------------------------------------------------
+resource "kubernetes_namespace" "microservices" {
+  metadata {
+    name = "microservices"
+  }
+
+  depends_on = [module.eks]
+}
+
 resource "kubernetes_secret" "app_secrets" {
   metadata {
     name      = "app-secrets"
-    namespace = "microservices"
+    namespace = kubernetes_namespace.microservices.metadata[0].name
   }
 
   data = {
@@ -170,6 +178,6 @@ resource "kubernetes_secret" "app_secrets" {
   depends_on = [
     module.eks,
     aws_db_instance.postgres,
-    helm_release.argocd_application
+    kubernetes_namespace.microservices
   ]
 }
