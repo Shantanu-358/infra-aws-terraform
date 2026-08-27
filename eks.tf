@@ -18,10 +18,10 @@ module "eks" {
   # Grants cluster admin permissions to current Terraform caller identity
   enable_cluster_creator_admin_permissions = true
 
-  # EKS Access Entries: Grants EKSClusterAdminPolicy & EKSAdminPolicy to GitHub Actions Terraform IAM Role
+  # EKS Access Entries: Grants EKSClusterAdminPolicy & EKSAdminPolicy to terraform-admin IAM User & GitHubActionsTerraformRole
   access_entries = {
-    github_actions = {
-      principal_arn = "arn:aws:iam::526727148285:role/GitHubActionsTerraformRole"
+    terraform_admin = {
+      principal_arn = "arn:aws:iam::526727148285:user/terraform-admin"
       type          = "STANDARD"
 
       policy_associations = {
