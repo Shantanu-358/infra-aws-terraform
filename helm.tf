@@ -117,11 +117,9 @@ resource "helm_release" "argocd_application" {
     yamlencode({
       applications = {
         microservices-argo = {
-          namespace = "argocd"
-          finalizers = [
-            "resources-finalizer.argocd.argoproj.io"
-          ]
-          project = "default"
+          namespace  = "argocd"
+          finalizers = []
+          project    = "default"
           source = {
             repoURL        = var.gitops_repo_url
             targetRevision = "HEAD"
@@ -151,33 +149,33 @@ resource "helm_release" "argocd_application" {
 }
 
 # --------------------------------------------------------------------------------
-# 4. Microservices Application Namespace & Dynamic Secrets
+# 4. Microservices Dynamic Secrets (Helm Release)
 # --------------------------------------------------------------------------------
-resource "kubernetes_namespace" "microservices" {
-  metadata {
-    name = "microservices"
+resource "helm_release" "app_secrets" {
+  name             = "app-secrets"
+  chart            = "${path.module}/charts/app-secrets"
+  namespace        = "microservices"
+  create_namespace = true
+
+  set {
+    name  = "namespace"
+    value = "microservices"
   }
 
-  depends_on = [module.eks]
-}
-
-resource "kubernetes_secret" "app_secrets" {
-  metadata {
-    name      = "app-secrets"
-    namespace = kubernetes_namespace.microservices.metadata[0].name
+  set {
+    name  = "databaseUrl"
+    value = "postgresql://dbadmin:${var.db_password}@${aws_db_instance.postgres.endpoint}/appdb"
   }
 
-  data = {
-    DATABASE_URL   = "postgresql://dbadmin:${var.db_password}@${aws_db_instance.postgres.endpoint}/appdb"
-    JWT_SECRET_KEY = var.jwt_secret_key
+  set {
+    name  = "jwtSecretKey"
+    value = var.jwt_secret_key
   }
-
-  type = "Opaque"
 
   depends_on = [
     module.eks,
     aws_db_instance.postgres,
-    kubernetes_namespace.microservices
+    helm_release.argocd_application
   ]
 }
 
@@ -187,12 +185,12 @@ resource "kubernetes_secret" "app_secrets" {
 resource "helm_release" "db_init" {
   name             = "db-init"
   chart            = "${path.module}/charts/db-init"
-  namespace        = kubernetes_namespace.microservices.metadata[0].name
-  create_namespace = false
+  namespace        = "microservices"
+  create_namespace = true
 
   set {
     name  = "namespace"
-    value = kubernetes_namespace.microservices.metadata[0].name
+    value = "microservices"
   }
 
   set {
@@ -218,6 +216,6 @@ resource "helm_release" "db_init" {
   depends_on = [
     module.eks,
     aws_db_instance.postgres,
-    kubernetes_namespace.microservices
+    helm_release.argocd_application
   ]
 }

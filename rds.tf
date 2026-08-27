@@ -127,12 +127,10 @@ resource "aws_db_instance" "postgres" {
   # CKV_AWS_157: Multi-AZ High Availability
   multi_az = true
 
-  # CKV_AWS_293: Deletion Protection
-  # During normal operation: deletion_protection=true (Chekov compliance)
-  # During destroy: -var="enable_deletion_protection=false" + skip_final_snapshot=true (avoids parameter conflicts)
+  # CKV_AWS_293: Deletion Protection & Final Snapshot Handling
   deletion_protection       = var.enable_deletion_protection
-  skip_final_snapshot       = !var.enable_deletion_protection
-  final_snapshot_identifier = var.enable_deletion_protection ? "${var.cluster_name}-postgres-final-snapshot" : null
+  skip_final_snapshot       = var.skip_final_snapshot
+  final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.cluster_name}-postgres-final-snapshot"
 
   # CKV2_AWS_60: Copy Tags to Snapshot
   copy_tags_to_snapshot = true

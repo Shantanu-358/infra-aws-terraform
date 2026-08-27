@@ -53,3 +53,9 @@ variable "enable_deletion_protection" {
   type        = bool
   default     = true
 }
+
+variable "skip_final_snapshot" {
+  description = "Skip final RDS snapshot creation during terraform destroy"
+  type        = bool
+  default     = true
+}

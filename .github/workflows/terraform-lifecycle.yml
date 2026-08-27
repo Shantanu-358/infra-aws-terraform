@@ -48,7 +48,7 @@ jobs:
       # Runs if triggered by scheduled cron OR if manual input action is 'destroy'
       - name: Terraform Destroy (Teardown EKS)
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.action == 'destroy')
-        run: terraform destroy -auto-approve
+        run: terraform destroy -auto-approve -var="enable_deletion_protection=false" -var="skip_final_snapshot=true"
 
       # --- APPLY EXECUTION ROUTE ---
       # Runs ONLY if manually triggered with 'apply' input
