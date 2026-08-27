@@ -181,3 +181,44 @@ resource "kubernetes_secret" "app_secrets" {
     kubernetes_namespace.microservices
   ]
 }
+
+# --------------------------------------------------------------------------------
+# 5. Automated Database Initialization Job (Runs init.sql on RDS PostgreSQL)
+# --------------------------------------------------------------------------------
+resource "helm_release" "db_init" {
+  name             = "db-init"
+  chart            = "${path.module}/charts/db-init"
+  namespace        = kubernetes_namespace.microservices.metadata[0].name
+  create_namespace = false
+
+  set {
+    name  = "namespace"
+    value = kubernetes_namespace.microservices.metadata[0].name
+  }
+
+  set {
+    name  = "rdsHost"
+    value = aws_db_instance.postgres.address
+  }
+
+  set {
+    name  = "dbUser"
+    value = aws_db_instance.postgres.username
+  }
+
+  set {
+    name  = "dbPassword"
+    value = var.db_password
+  }
+
+  set {
+    name  = "dbName"
+    value = aws_db_instance.postgres.db_name
+  }
+
+  depends_on = [
+    module.eks,
+    aws_db_instance.postgres,
+    kubernetes_namespace.microservices
+  ]
+}

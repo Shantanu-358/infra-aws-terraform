@@ -1,0 +1,38 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-init-job
+  namespace: {{ .Values.namespace | default "microservices" | quote }}
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 10
+  template:
+    metadata:
+      name: db-init-pod
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: db-init
+          image: postgres:16-alpine
+          env:
+            - name: PGPASSWORD
+              value: {{ .Values.dbPassword | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Waiting for RDS database at {{ .Values.rdsHost }}..."
+              until pg_isready -h {{ .Values.rdsHost }} -p 5432 -U {{ .Values.dbUser }}; do
+                echo "RDS PostgreSQL not ready yet, sleeping 3s..."
+                sleep 3
+              done
+              echo "RDS PostgreSQL is ready. Executing database initialization script..."
+              psql -h {{ .Values.rdsHost }} -p 5432 -U {{ .Values.dbUser }} -d {{ .Values.dbName }} -f /scripts/init.sql
+              echo "Database initialization script executed successfully!"
+          volumeMounts:
+            - name: script-volume
+              mountPath: /scripts
+      volumes:
+        - name: script-volume
+          configMap:
+            name: db-init-script
