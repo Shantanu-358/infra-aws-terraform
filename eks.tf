@@ -18,6 +18,29 @@ module "eks" {
   # Grants cluster admin permissions to current Terraform caller identity
   enable_cluster_creator_admin_permissions = true
 
+  # EKS Access Entries: Grants EKSClusterAdminPolicy & EKSAdminPolicy to GitHub Actions Terraform IAM Role
+  access_entries = {
+    github_actions = {
+      principal_arn = "arn:aws:iam::526727148285:role/GitHubActionsTerraformRole"
+      type          = "STANDARD"
+
+      policy_associations = {
+        cluster_admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    }
+  }
+
   eks_managed_node_groups = {
     main = {
       min_size     = 2
