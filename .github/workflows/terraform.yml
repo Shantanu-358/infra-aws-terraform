@@ -1,15 +1,27 @@
-name: "Terraform Infrastructure Deployment"
+name: "Terraform Infrastructure Deployment & Lifecycle"
 
 on:
   push:
     branches: ["main"]
   pull_request:
     branches: ["main"]
+  schedule:
+    # Daily automated cleanup schedule (runs at 17:30 UTC / 11:00 PM IST)
+    - cron: "30 17 * * *"
   workflow_dispatch:
+    inputs:
+      action:
+        description: "Select Action to execute on AWS Infrastructure"
+        required: true
+        default: "apply"
+        type: choice
+        options:
+          - apply
+          - destroy
 
 jobs:
   terraform:
-    name: "Terraform"
+    name: "Terraform Operations"
     runs-on: ubuntu-latest
 
     permissions:
@@ -31,24 +43,28 @@ jobs:
       - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::526727148285:role/GitHubActionsTerraformRole # AWS IAM Role ARN
+          role-to-assume: arn:aws:iam::526727148285:role/GitHubActionsTerraformRole
           aws-region: ap-south-2
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform-version: 1.8.0 
-
-      - name: Terraform Format Check
-        run: terraform fmt -check -recursive
+          terraform_version: 1.10.0
 
       - name: Terraform Init
         run: terraform init
 
+      # --- VALIDATION & PLANNING (Skipped during Destroy / Schedule) ---
+      - name: Terraform Format Check
+        if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.action != 'destroy')
+        run: terraform fmt -check -recursive
+
       - name: Terraform Validate
+        if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.action != 'destroy')
         run: terraform validate
 
       - name: Run Checkov IaC Security Gate
+        if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.action != 'destroy')
         uses: bridgecrewio/checkov-action@v12
         with:
           framework: terraform
@@ -57,16 +73,25 @@ jobs:
           quiet: true      # Keeps console logs clean by showing only failed checks
 
       - name: Terraform Plan
+        if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.action != 'destroy')
         run: terraform plan -out=tfplan
 
       - name: Upload Plan Artifact
+        if: github.event_name != 'schedule' && (github.event_name != 'workflow_dispatch' || inputs.action != 'destroy')
         uses: actions/upload-artifact@v4
         with:
           name: tfplan
           path: tfplan
           retention-days: 1
 
+      # --- APPLY EXECUTION ROUTE ---
+      # Executes ONLY on push to main or manual workflow_dispatch with 'apply'
       - name: Terraform Apply
-        # Executes apply ONLY if code was merged into main (not on PR checks)
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: terraform apply -input=false tfplan
+        if: (github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
+        run: terraform apply -auto-approve tfplan
+
+      # --- DESTROY EXECUTION ROUTE ---
+      # Executes ONLY on automated cron schedule or manual workflow_dispatch with 'destroy'
+      - name: Terraform Destroy
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.action == 'destroy')
+        run: terraform destroy -auto-approve -var="enable_deletion_protection=false" -var="skip_final_snapshot=true"
