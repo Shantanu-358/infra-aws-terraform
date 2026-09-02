@@ -78,7 +78,8 @@ resource "helm_release" "aws_load_balancer_controller" {
 
   depends_on = [
     module.eks,
-    kubernetes_service_account.aws_load_balancer_controller
+    kubernetes_service_account.aws_load_balancer_controller,
+    time_sleep.wait_for_alb_deletion
   ]
 }
 
@@ -216,6 +217,126 @@ resource "helm_release" "db_init" {
   depends_on = [
     module.eks,
     aws_db_instance.postgres,
+    helm_release.argocd_application
+  ]
+}
+
+
+# --------------------------------------------------------------------------------
+# 6. Prometheus & Grafana Monitoring Stack (kube-prometheus-stack)
+# --------------------------------------------------------------------------------
+resource "helm_release" "kube_prometheus_stack" {
+  count            = var.enable_monitoring ? 1 : 0
+  name             = "kube-prometheus-stack"
+  repository       = "https://prometheus-community.github.io/helm-charts"
+  chart            = "kube-prometheus-stack"
+  namespace        = "monitoring"
+  version          = var.prometheus_helm_version
+  create_namespace = true
+
+  values = [
+    yamlencode({
+      # Grafana Configuration
+      grafana = {
+        enabled       = true
+        adminPassword = var.grafana_admin_password
+        service = {
+          type = "ClusterIP"
+        }
+        resources = {
+          requests = {
+            cpu    = "50m"
+            memory = "100Mi"
+          }
+          limits = {
+            cpu    = "200m"
+            memory = "256Mi"
+          }
+        }
+      }
+
+      # Prometheus Server Configuration
+      prometheus = {
+        prometheusSpec = {
+          retention                               = "12h"
+          retentionSize                           = "3GiB"
+          podMonitorSelectorNilUsesHelmValues     = false
+          serviceMonitorSelectorNilUsesHelmValues = false
+          ruleSelectorNilUsesHelmValues           = false
+          resources = {
+            requests = {
+              cpu    = "100m"
+              memory = "250Mi"
+            }
+            limits = {
+              cpu    = "500m"
+              memory = "600Mi"
+            }
+          }
+        }
+      }
+
+      # Alertmanager Configuration
+      alertmanager = {
+        alertmanagerSpec = {
+          retention = "12h"
+          resources = {
+            requests = {
+              cpu    = "20m"
+              memory = "50Mi"
+            }
+            limits = {
+              cpu    = "100m"
+              memory = "100Mi"
+            }
+          }
+        }
+      }
+
+      # Node Exporter Configuration
+      nodeExporter = {
+        enabled = true
+        resources = {
+          requests = {
+            cpu    = "20m"
+            memory = "30Mi"
+          }
+          limits = {
+            cpu    = "100m"
+            memory = "60Mi"
+          }
+        }
+      }
+
+      # Kube State Metrics Configuration
+      kube-state-metrics = {
+        resources = {
+          requests = {
+            cpu    = "20m"
+            memory = "50Mi"
+          }
+          limits = {
+            cpu    = "100m"
+            memory = "100Mi"
+          }
+        }
+      }
+    })
+  ]
+
+  depends_on = [
+    module.eks,
+    helm_release.argocd
+  ]
+}
+
+# --------------------------------------------------------------------------------
+# 7. Teardown Safety Buffer (Allows AWS ALB Controller to delete ALBs on Destroy)
+# --------------------------------------------------------------------------------
+resource "time_sleep" "wait_for_alb_deletion" {
+  destroy_duration = "30s"
+
+  depends_on = [
     helm_release.argocd_application
   ]
 }

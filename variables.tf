@@ -59,3 +59,22 @@ variable "skip_final_snapshot" {
   type        = bool
   default     = true
 }
+
+variable "prometheus_helm_version" {
+  description = "Version of the kube-prometheus-stack Helm chart to install"
+  type        = string
+  default     = "69.3.0"
+}
+
+variable "grafana_admin_password" {
+  description = "Administrator password for Grafana web UI"
+  type        = string
+  sensitive   = true
+  default     = "PromGrafanaAdmin2026!"
+}
+
+variable "enable_monitoring" {
+  description = "Toggle to enable or disable Prometheus & Grafana monitoring stack"
+  type        = bool
+  default     = true
+}
